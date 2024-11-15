@@ -6,7 +6,7 @@
 /*   By: lmarck <marvin@42.fr>                      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/11/05 18:56:53 by lmarck            #+#    #+#             */
-/*   Updated: 2024/11/08 17:03:26 by lmarck           ###   ########.fr       */
+/*   Updated: 2024/11/15 13:45:56 by lmarck           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,14 +14,15 @@
 #include <stdio.h>
 
 size_t	iput_c(va_list ap);
-size_t	putvar(const char format_i, const char *cur_arg, va_list ap);
-size_t	iput_s(const char *s, va_list ap);
+size_t	putvar(const char format_i, va_list ap);
+size_t	iput_s(va_list ap);
 size_t	iputchar(char c);
-size_t iput_p(va_list ap);
+size_t iput_p_x(va_list ap,const char format_i);
 size_t iputstr(char *str);
 size_t iput_d( va_list ap);
 int rec_iput_d(int i);
 int rec_iput_p(unsigned long int adr, char *bhex, int len);
+size_t iput_u(va_list ap);
 
 int	ft_printf(const char *format, ...)
 {
@@ -41,7 +42,7 @@ int	ft_printf(const char *format, ...)
 		if (format[i] != '%')
 			len = len + iputchar(format[i]);
 		else
-			len = len + putvar(format[++i], cur_arg, ap);
+			len = len + putvar(format[++i], ap);
 		i++;
 	}
 	return (len);
@@ -53,30 +54,55 @@ size_t	iputchar(const char c)
 	return (write(1, &c, 1));
 }
 
-size_t	putvar(const char format_i, const char *cur_arg, va_list ap)
+size_t	putvar(const char format_i, va_list ap)
 {
 	if (!format_i)
-		return(-1);
+		return (-1);
 	if (format_i == 's')
-		return (iput_s(cur_arg, ap));
+		return (iput_s(ap));
 	if (format_i == 'c')
-		return(iput_c(ap));
-	if (format_i == 'p')
-		return(iput_p(ap));
+		return (iput_c(ap));
+	if (format_i == 'p' || format_i == 'x' || format_i == 'X')
+		return (iput_p_x(ap, format_i));
 	if (format_i == '%')
-		return(iputchar('%'));
-	if (format_i == 'd')
-		return(iput_d(ap));
+		return (iputchar('%'));
+	if (format_i == 'd' || format_i =='i')
+		return (iput_d(ap));
+	if (format_i == 'u')
+		return (iput_u(ap));
 	return (0);
 }
+size_t	iput_u(va_list ap)
+{
+	long int	u;
+	char		tab[10];
+	size_t		len;
+	size_t		i;
 
-size_t	iput_s(const char *s, va_list ap)
+	len = 9;
+	i = 0;
+	u = (va_arg(ap, unsigned int));
+	if (u == 0)
+		return (write(1, "0", 1));
+	while (u != 0)
+	{
+		tab[len] = (u % 10) + '0';
+		u = u / 10;
+		len --;
+	}
+	while (++len <= 9)
+		i = i + write(1, &tab[len], 1);
+	return (i);
+}
+
+size_t	iput_s(va_list ap)
 {
 	int	i;
+	char * s;
 
-	if (!s)
-		return (0);
 	s = va_arg(ap, char*);
+	if (!s)
+		return (write(1, "(null)", 6 ));
 	i = 0;
 	while (s[i])
 	{
@@ -91,7 +117,7 @@ size_t iput_d( va_list ap)
 	int len;
 
 	len = 0;
-	i = (va_arg(ap, long int));
+	i = (va_arg(ap, int));
 	if(i == 0)
 		return (write(1, "0", 1));
 	if (i < 0)
@@ -112,15 +138,28 @@ int rec_iput_d(int i)
 	i = i / 10;
 	return (rec_iput_d(i) + write (1, &c, 1));
 }
-size_t iput_p(va_list ap)
+size_t iput_p_x(va_list ap, char format_i)
 {
 	char *bhex;
 	unsigned long int adr;
 	int len;
 
-	len = write(1, "0x", 2);
-	bhex = "0123456789abcdef";
-	adr = (va_arg(ap, unsigned long int));
+	len = 0;
+	if (format_i == 'X')
+		bhex = "0123456789ABCDEF";
+	else
+		bhex = "0123456789abcdef";
+	if (format_i == 'p')
+	{
+		adr = (va_arg(ap, unsigned long int));
+			if(!adr)
+				return (write(1, "(nil)", 5 ));
+		len = write(1, "0x", 2);
+	}
+	else
+		adr = (va_arg(ap, unsigned int));
+	if (!adr)
+		return (write(1, "0", 1));
 	return (len + rec_iput_p(adr, bhex, len));
 }
 int rec_iput_p(unsigned long adr, char *bhex, int len)
@@ -155,17 +194,19 @@ size_t	iput_c(va_list ap)
 
 int main()
 {
-	char *format = "123\n%%s1:\n%s\n%%s2:\n%s\nchar c:\n%c\nvoid p:\n%p\ndecimal d:\n%d\nreturn value:";
+	char *format = "123\n%%s1:\n%s\n%%s2:\n%s\nchar c:\n%c\nvoid p:\n%p\ndecimal d:\n%d\ninteger i:\n%i\nunsigned u;\n%u\nHexa x:\n%x\nHEXA X:\n%X\nreturn value:";
 	char *s1 = "string1";
-	char *s2 = "STRING2";
-	char c = 'X';
-	long int d = -10480;
-	void *p = &d;
+	char *s2 = NULL;
+	char c = 'c';
+	int d = -0x424242;
+	unsigned int u = -2944548;
+
+	void *p = s2;
+
 
 	printf("\n**ft_printf**\n");
-	printf("\n%d\n", ft_printf(format, s1, s2, c, p, d));
+	printf("\n%d\n", ft_printf(format, s1, s2, c, p, d, d, u, u, u));
 	printf("\n**printf**\n");
-	printf("\n%d\n", printf(format, s1, s2, c, p, d));
-	//printf("fsde%hdfg");
+	printf("\n%d\n", printf(format, s1, s2, c, p, d, d, u, u, u));
 	return 0;
 }
